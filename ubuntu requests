@@ -1,0 +1,50 @@
+import os
+import requests
+from urllib.parse import urlparse
+import hashlib
+
+def fetch_images():
+    urls = input("Enter image URLs separated by spaces:\n").split()
+
+    os.makedirs("Fetched_Images", exist_ok=True)
+
+    downloaded_hashes = set()  # to prevent duplicates
+
+    for url in urls:
+        try:
+            response = requests.get(url, stream=True, timeout=10)
+            response.raise_for_status()
+
+            # ✅ Security precaution: check Content-Type header
+            content_type = response.headers.get("Content-Type", "")
+            if not content_type.startswith("image/"):
+                print(f"⚠️ Skipping {url} (not an image, got {content_type})")
+                continue
+
+            # Extract filename or generate one
+            parsed_url = urlparse(url)
+            filename = os.path.basename(parsed_url.path)
+            if not filename:
+                filename = "image_" + str(abs(hash(url))) + ".jpg"
+
+            filepath = os.path.join("Fetched_Images", filename)
+
+            # ✅ Avoid duplicates: use hash of content
+            file_hash = hashlib.md5(response.content).hexdigest()
+            if file_hash in downloaded_hashes:
+                print(f"⚠️ Skipping {url} (duplicate image detected)")
+                continue
+            downloaded_hashes.add(file_hash)
+
+            # Save image in binary mode
+            with open(filepath, "wb") as f:
+                for chunk in response.iter_content(1024):
+                    f.write(chunk)
+
+            print(f"✅ Image saved: {filepath}")
+
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Failed to fetch {url}: {e}")
+
+if __name__ == "__main__":
+    fetch_images()
